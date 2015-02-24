@@ -3,33 +3,34 @@ require "csv"
 
 module Embulk
   module Parser
-
     class PcapngParserPlugin < ParserPlugin
       Plugin.register_parser("pcapng", self)
 
       def self.transaction(config, &control)
-        p "transaction #{config}, (#{task})"
-        idx = 0
-        columns = @schema.map{|s|
-          Column.new(idx, "#{s['name']}", s['type'].to_sym)
+        schema = config.param("schema", :array, default: [])
+        task = {
+          "schema" => schema
+        }
+
+        idx = -1
+        columns = schema.map{|s|
           idx += 1
+          elm = Column.new(idx, "#{s['name']}", s['type'].to_sym)
         }
 
         yield(task, columns)
       end
 
       def init
-        p "init"
         @schema = @task["schema"]
-        p @schema
       end
 
       def run(file_input)
-        p "run"
         while file = file_input.next_file
           tmpf, tmppath = tmppcapng(file.read)
-          each_packet(tmppath, @schema.map{|elm| elm.name}) do |hash|
-            page_builder.add(hash)
+          each_packet(tmppath, @schema.map{|elm| elm["name"]}) do |hash|
+            entry = @schema.map{|s| convert(hash[s["name"]], s["type"])}
+            page_builder.add(entry)
           end
           tmpf.close
         end
@@ -38,10 +39,10 @@ module Embulk
 
       private
       def convert val, type
-        v = val.to_s
+        v = val
         v = "" if val == nil
-        v = v.to_i if type == :long
-        v = v.to_f if type == :float
+        v = v.to_i if type == "long"
+        v = v.to_f if type == "float"
         return v
       end
 
@@ -55,6 +56,8 @@ module Embulk
 
       def tmppcapng(data)
         tmpf = Tempfile.open("pcapng")
+        tmpf.write(data)
+        tmpf.flush()
         return tmpf, tmpf.path
       end
 
