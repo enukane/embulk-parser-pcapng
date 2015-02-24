@@ -1,0 +1,12 @@
+exec: {}
+in:
+  type: file
+  path_prefix: "/where/ever/you/like/"
+  parser:
+    type: pcapng
+    schema:
+      - { name: frame.number,                 type: long }
+      - { name: frame.time_epoch,             type: long }
+      - { name: frame.len,                    type: long }
+out:
+  type: stdout
